@@ -1,45 +1,35 @@
 import { useState } from "react";
-import { useNavigate } from "react-router";
-import { useDispatch } from "react-redux";
-import { setUser } from "~/slices/authSlice";
+import { Link, useNavigate } from "react-router";
+import { useDispatch, useSelector } from "react-redux";
+import type { RootState } from "~/store";
 
 interface FormData {
-  name: string;
-  email: string;
-  password: string;
-  password_confirmation: string;
+  title: string;
+  description: string;
+  status: string;
+  due_date: string;
 }
 
-export default function Register() {
-  const dispatch = useDispatch();
+export default function Add() {
+  const token = useSelector((state: RootState) => state.auth.token);
   const navigate = useNavigate();
   const [formData, setFormData] = useState<FormData>({
-    name: "",
-    email: "",
-    password: "",
-    password_confirmation: "",
+    title: "",
+    description: "",
+    status: "pending",
+    due_date: "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
-    if (formData.name.length < 3) {
-      newErrors.name = "Full name must be at least 3 characters";
-    }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(formData.email)) {
-      newErrors.email = "Invalid email address";
-    }
-
-    if (formData.password.length < 6) {
-      newErrors.password = "Password must be at least 6 characters";
-    }
-
-    if (formData.password !== formData.password_confirmation) {
-      newErrors.password_confirmation = "Passwords do not match";
-    }
+    if (!formData.title.trim()) newErrors.title = "Title is required";
+    if (!formData.description.trim())
+      newErrors.description = "Description is required";
+    if (!formData.due_date.trim()) newErrors.due_date = "Due date is required";
+    if (!["pending", "completed"].includes(formData.status))
+      newErrors.status = "Invalid status";
 
     return newErrors;
   };
@@ -50,34 +40,34 @@ export default function Register() {
 
     if (Object.keys(newErrors).length === 0) {
       try {
-        const { ...registrationData } = formData;
+        const { ...creationData } = formData;
 
-        const response = await fetch("/api/register", {
+        const response = await fetch("/api/tasks", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
             Accept: "application/json",
           },
-          body: JSON.stringify(registrationData),
+          body: JSON.stringify(creationData),
         });
 
         // Try to get the response content
         const contentType = response.headers.get("content-type");
-        let errorMessage = "Registration failed";
+        let errorMessage = "Creation failed";
 
         if (contentType && contentType.includes("application/json")) {
           const data = await response.json();
 
           if (response.ok) {
-            dispatch(setUser(data));
-            localStorage.setItem("token", data.token);
             navigate("/");
             return;
           }
-          errorMessage = data.message || "Registration failed";
+          errorMessage = data.message || "Creation failed";
         } else {
           // If not JSON, get the text content for debugging
           const textContent = await response.text();
+
           errorMessage = "Server error occurred";
         }
 
@@ -85,7 +75,7 @@ export default function Register() {
       } catch (error) {
         console.error("Full error:", error);
         setErrors({
-          submit: "An error occurred during registration. Please try again.",
+          submit: "An error occurred during creation. Please try again.",
         });
       }
     } else {
@@ -93,9 +83,19 @@ export default function Register() {
     }
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+    >
+  ) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+
+    // Ensure date is formatted properly
+    const updatedValue =
+      name === "due_date" ? new Date(value).toISOString().split("T")[0] : value;
+
+    setFormData((prev) => ({ ...prev, [name]: updatedValue }));
+
     if (errors[name]) {
       setErrors((prev) => {
         const newErrors = { ...prev };
@@ -109,7 +109,7 @@ export default function Register() {
     <>
       <div className="sm:mx-auto sm:w-full sm:max-w-sm">
         <h2 className="mt-10 text-center text-2xl font-bold tracking-tight text-gray-900">
-          Create a new account
+          Create a new task
         </h2>
       </div>
 
@@ -123,103 +123,104 @@ export default function Register() {
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
             <label
-              htmlFor="name"
+              htmlFor="title"
               className="block text-sm font-medium text-gray-900"
             >
-              Full name
+              Title
             </label>
             <input
               type="text"
-              id="name"
-              name="name"
-              value={formData.name}
+              id="title"
+              name="title"
+              value={formData.title}
               onChange={handleChange}
               className="block w-full rounded-md px-3 py-1.5 border border-gray-300"
             />
-            {errors.name && (
-              <p className="text-red-500 text-sm">{errors.name}</p>
+            {errors.title && (
+              <p className="text-red-500 text-sm">{errors.title}</p>
             )}
           </div>
 
           <div>
             <label
-              htmlFor="email"
+              htmlFor="description"
               className="block text-sm font-medium text-gray-900"
             >
-              Email address
+              Description
             </label>
-            <input
-              type="email"
-              id="email"
-              name="email"
-              value={formData.email}
+            <textarea
+              id="description"
+              name="description"
+              value={formData.description}
               onChange={handleChange}
               className="block w-full rounded-md px-3 py-1.5 border border-gray-300"
+              rows={3}
             />
-            {errors.email && (
-              <p className="text-red-500 text-sm">{errors.email}</p>
+            {errors.description && (
+              <p className="text-red-500 text-sm">{errors.description}</p>
             )}
           </div>
 
           <div>
             <label
-              htmlFor="password"
+              htmlFor="due_date"
               className="block text-sm font-medium text-gray-900"
             >
-              Password
+              Due Date
             </label>
             <input
-              type="password"
-              id="password"
-              name="password"
-              value={formData.password}
+              type="date"
+              id="due_date"
+              name="due_date"
+              value={formData.due_date}
               onChange={handleChange}
               className="block w-full rounded-md px-3 py-1.5 border border-gray-300"
             />
-            {errors.password && (
-              <p className="text-red-500 text-sm">{errors.password}</p>
+            {errors.due_date && (
+              <p className="text-red-500 text-sm">{errors.due_date}</p>
             )}
           </div>
 
           <div>
             <label
-              htmlFor="password_confirmation"
+              htmlFor="status"
               className="block text-sm font-medium text-gray-900"
             >
-              Confirm password
+              Status
             </label>
-            <input
-              type="password"
-              id="password_confirmation"
-              name="password_confirmation"
-              value={formData.password_confirmation}
+            <select
+              id="status"
+              name="status"
+              value={formData.status}
               onChange={handleChange}
               className="block w-full rounded-md px-3 py-1.5 border border-gray-300"
-            />
-            {errors.password_confirmation && (
-              <p className="text-red-500 text-sm">
-                {errors.password_confirmation}
-              </p>
+            >
+              <option value="" disabled>
+                Select status
+              </option>
+              <option value="pending">Pending</option>
+              <option value="completed">Completed</option>
+            </select>
+            {errors.status && (
+              <p className="text-red-500 text-sm">{errors.status}</p>
             )}
           </div>
 
-          <button
-            type="submit"
-            className="w-full rounded-md bg-indigo-600 px-3 py-1.5 text-white font-semibold hover:bg-indigo-500"
-          >
-            Sign up
-          </button>
+          <div className="flex gap-4">
+            <Link
+              to="/"
+              className="w-full flex items-center justify-center rounded-md bg-gray-600 px-3 py-1.5 text-white font-semibold hover:bg-gray-500"
+            >
+              Cancel
+            </Link>
+            <button
+              type="submit"
+              className="w-full rounded-md bg-indigo-600 px-3 py-1.5 text-white font-semibold hover:bg-indigo-500"
+            >
+              Submit
+            </button>
+          </div>
         </form>
-
-        <p className="mt-10 text-center text-sm text-gray-500">
-          Already have an account?{" "}
-          <a
-            href="/login"
-            className="font-semibold text-indigo-600 hover:text-indigo-500"
-          >
-            Sign in
-          </a>
-        </p>
       </div>
     </>
   );

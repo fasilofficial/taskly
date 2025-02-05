@@ -57,4 +57,15 @@ class AuthController extends Controller
             'message' => 'Logged out',
         ];
     }
+
+    public function user(Request $request)
+    {
+        $user = $request->user();
+        $tasks = $user->tasks;
+
+        return response()->json([
+            'user' => $user,
+            'tasks' => $tasks,
+        ]);
+    }
 }

@@ -21,7 +21,7 @@ class TaskController extends Controller implements HasMiddleware
      */
     public function index()
     {
-        return Task::all();
+        return Task::with('user')->get();
     }
 
     /**
